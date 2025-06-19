@@ -1,0 +1,98 @@
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.HashMap;
+import java.util.Map;
+
+public class UltimateWhatsAppBot {
+    private final String apiUrl;
+    private final String apiToken;
+    private final Map<String, String> commandHandlers = new HashMap<>();
+
+    public UltimateWhatsAppBot(String apiUrl, String apiToken) {
+        this.apiUrl = apiUrl;
+        this.apiToken = apiToken;
+        initializeCommands();
+    }
+
+    private void initializeCommands() {
+        // Core command handlers
+        commandHandlers.put("/start", this::handleStart);
+        commandHandlers.put("/help", this::handleHelp);
+        commandHandlers.put("/menu", this::handleMenu);
+    }
+
+    // Core messaging function
+    public String sendMessage(String to, String message) throws Exception {
+        String jsonBody = String.format("""
+        {
+            "messaging_product": "whatsapp",
+            "to": "%s",
+            "type": "text",
+            "text": {"body": "%s"}
+        }""", to, message);
+
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(apiUrl))
+            .header("Authorization", "Bearer " + apiToken)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+            .build();
+
+        HttpResponse<String> response = client.send(
+            request, HttpResponse.BodyHandlers.ofString());
+        
+        return response.body();
+    }
+
+    // Command processors
+    private String handleStart(String sender) {
+        return "Welcome to Ultimate WhatsApp Bot! Type /help for commands.";
+    }
+
+    private String handleHelp(String sender) {
+        return """
+        Available commands:
+        /start - Start the bot
+        /help - Show this help
+        /menu - Show main menu
+        [Add your other commands here]""";
+    }
+
+    private String handleMenu(String sender) {
+        return """
+        Main Menu:
+        1. Account Services
+        2. Notifications
+        3. Settings""";
+    }
+
+    // Message processor
+    public void processIncomingMessage(String sender, String message) {
+        try {
+            String response;
+            if (message.startsWith("/")) {
+                response = commandHandlers.getOrDefault(message, 
+                    cmd -> "Unknown command").apply(sender);
+            } else {
+                response = "You said: " + message;
+            }
+            sendMessage(sender, response);
+        } catch (Exception e) {
+            System.err.println("Error processing message: " + e.getMessage());
+        }
+    }
+
+    // Broadcast to multiple users
+    public void broadcastMessage(List<String> recipients, String message) {
+        recipients.forEach(to -> {
+            try {
+                sendMessage(to, message);
+            } catch (Exception e) {
+                System.err.println("Failed to send to " + to + ": " + e.getMessage());
+            }
+        });
+    }
+}
